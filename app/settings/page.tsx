@@ -1,0 +1,2 @@
+import { PageHeader } from "@/components/ui";
+export default function Settings(){return <><PageHeader title="Settings" description="Local workspace configuration."/><div className="card card-pad"><h2>ProspectDesk</h2><p className="subtle">This local-first workspace uses your configured MySQL database. Pipeline stages and niches are stored as database records so they can be extended without changing the UI.</p><div className="notice">No authentication or external integrations are enabled. Keep your .env file private.</div></div></>}

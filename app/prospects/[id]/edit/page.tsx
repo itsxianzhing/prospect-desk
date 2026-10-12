@@ -1,0 +1,3 @@
+export const dynamic = "force-dynamic";
+import { db } from "@/lib/db"; import { notFound } from "next/navigation"; import { PageHeader } from "@/components/ui"; import { BusinessForm } from "@/components/business-form";
+export default async function EditProspect({params}:{params:Promise<{id:string}>}){const {id}=await params;const [business,niches,stages]=await Promise.all([db.business.findUnique({where:{id}}),db.niche.findMany({orderBy:{name:"asc"}}),db.pipelineStage.findMany({orderBy:{sortOrder:"asc"}})]);if(!business)notFound();return <><PageHeader title="Edit prospect" description={`Update ${business.name}.`}/><BusinessForm business={business} niches={niches} stages={stages}/></>}

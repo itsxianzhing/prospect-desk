@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum WebsiteStatus {
+  UNKNOWN
+  NO_WEBSITE
+  HAS_WEBSITE
+  NEEDS_VERIFICATION
+}
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+enum OutreachChannel {
+  WHATSAPP
+  EMAIL
+  INSTAGRAM
+  PHONE
+  IN_PERSON
+  OTHER
+}
+enum ActivityType {
+  INITIAL_CONTACT
+  FOLLOW_UP
+  RESPONSE_RECEIVED
+  MEETING
+  OTHER
+}
+enum ResponseType {
+  NO_RESPONSE
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  NOT_APPLICABLE
+}
+enum FollowUpStatus {
+  PENDING
+  COMPLETED
+  CANCELED
+}
+enum DealStatus {
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model Niche {
+  id String @id @default(cuid())
+  name String @unique
+  description String? @db.Text
+  businesses Business[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model PipelineStage {
+  id String @id @default(cuid())
+  name String @unique
+  sortOrder Int @default(0)
+  businesses Business[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Business {
+  id String @id @default(cuid())
+  name String
+  address String?
+  websiteUrl String?
+  websiteStatus WebsiteStatus @default(UNKNOWN)
+  instagramUrl String?
+  otherSocialUrl String?
+  contactPerson String?
+  phone String?
+  email String?
+  leadSource String?
+  sourceUrl String?
+  priority Priority @default(MEDIUM)
+  notes String? @db.Text
+  nicheId String?
+  stageId String
+  niche Niche? @relation(fields: [nicheId], references: [id], onDelete: SetNull)
+  stage PipelineStage @relation(fields: [stageId], references: [id])
+  audits Audit[]
+  activities OutreachActivity[]
+  deals Deal[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([name])
+  @@index([websiteStatus])
+  @@index([priority])
+  @@index([stageId])
+  @@index([nicheId])
+}
+model Audit {
+  id String @id @default(cuid())
+  businessId String
+  auditDate DateTime @default(now())
+  websiteCondition String?
+  mobileExperience String?
+  designPerformance String? @db.Text
+  problems String? @db.Text
+  opportunities String? @db.Text
+  evidenceUrl String?
+  notes String? @db.Text
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@index([businessId, auditDate])
+}
+model OutreachActivity {
+  id String @id @default(cuid())
+  businessId String
+  occurredAt DateTime @default(now())
+  channel OutreachChannel
+  activityType ActivityType
+  response ResponseType @default(NOT_APPLICABLE)
+  notes String? @db.Text
+  followUpDate DateTime?
+  followUpStatus FollowUpStatus?
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@index([businessId, occurredAt])
+  @@index([followUpDate, followUpStatus])
+}
+model Deal {
+  id String @id @default(cuid())
+  businessId String
+  serviceType String
+  status DealStatus @default(QUALIFICATION)
+  estimatedValue BigInt?
+  proposalDate DateTime?
+  closedDate DateTime?
+  notes String? @db.Text
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([businessId, status])
+}
