@@ -85,7 +85,7 @@ For local development without Docker, install Node.js 20 or newer, npm, and MySQ
 1. Clone the repository and enter the project directory.
 
    ```bash
-   git clone <YOUR_REPOSITORY_URL>
+   git clone https://github.com/itsxianzhing/prospect-desk.git
    cd prospectdesk
    ```
 
