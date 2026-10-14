@@ -57,6 +57,37 @@ Prisma ORM
 MySQL 8.4
 ```
 
+### Real client IP and login rate limiting
+
+The live deployment was verified on `proxy-tier`: `cloudflared` is currently `172.18.0.9`, Nginx Proxy Manager is `172.18.0.8`, and ProspectDesk is `172.18.0.4` on `172.18.0.0/16`. NPM proxy host 12 (`prospectdesk.tansys.my.id`) is configured with this host-only advanced configuration:
+
+```nginx
+set_real_ip_from 172.18.0.9/32;
+real_ip_header CF-Connecting-IP;
+real_ip_recursive off;
+```
+
+NPM's normal proxy include then sends its normalized `$remote_addr` as `X-Real-IP`. ProspectDesk reads only that header and accepts it only when it is a valid IP address. It does not use client-supplied `X-Forwarded-For`, `X-Forwarded-Host`, or `CF-Connecting-IP` directly. The trusted address must be updated if the cloudflared container is recreated with a different `proxy-tier` IP; verify it with:
+
+```bash
+docker inspect cloudflared --format '{{(index .NetworkSettings.Networks "proxy-tier").IPAddress}}'
+docker exec nginx-proxy nginx -T 2>&1 | grep -E 'prospectdesk|172.18.0.9|CF-Connecting-IP|real_ip_recursive'
+docker exec nginx-proxy nginx -t
+```
+
+Do not broaden `set_real_ip_from` to the whole Docker subnet: other containers could then spoof a forwarding header. After changing the NPM host configuration, reload NPM and repeat the commands above. Validate the public path with a request containing deliberately false forwarding headers; the NPM access log must show the Cloudflare/tunnel-derived client value, never the supplied false value:
+
+```bash
+curl -skS -o /dev/null \
+  -H 'X-Real-IP: 198.51.100.77' \
+  -H 'X-Forwarded-For: 198.51.100.88' \
+  -H 'CF-Connecting-IP: 198.51.100.99' \
+  https://prospectdesk.example/login
+tail -f /home/tatan/nginx-proxy/data/logs/proxy-host-12_access.log
+```
+
+Login lockout keys are based on the normalized IP received as `X-Real-IP`, with MySQL row locking to prevent parallel-request bypass. Direct requests to the app must remain unavailable publicly; Compose currently publishes port 3000 only on `127.0.0.1` and exposes the app to NPM through `proxy-tier`.
+
 The application and database run as separate Docker Compose services. MySQL uses a persistent Docker volume, while the application connects to the database through the Compose network.
 
 For self-hosted deployment, the application can join an existing external Docker network used by Nginx Proxy Manager. This allows reverse-proxy routing without publishing the application's port on every network interface or exposing MySQL to the proxy network.
@@ -97,7 +128,9 @@ For local development without Docker, install Node.js 20 or newer, npm, and MySQ
 
 3. Replace the example database passwords in `.env.docker` with strong, unique values. Never commit this file.
 
-4. Start the application.
+4. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env.docker` to the single administrator login you want to use. Set `AUTH_SECRET` to a random secret generated with `openssl rand -base64 32`. Do not use the example values.
+
+5. Start the application.
 
    ```bash
    docker compose --env-file .env.docker up -d --build
@@ -106,6 +139,8 @@ For local development without Docker, install Node.js 20 or newer, npm, and MySQ
 5. Open the application locally:
 
    `http://localhost:3000`
+
+The application has no registration or password-reset flow. Credentials are read only by the server; changing them requires editing `.env.docker` and recreating the app container with `docker compose --env-file .env.docker up -d --build app` (existing MySQL volumes are not removed). The default lockout is five failed attempts for five minutes; configure `LOGIN_MAX_FAILURES` and `LOGIN_LOCKOUT_MINUTES` if needed.
 
    For a server deployment behind Nginx Proxy Manager, configure the desired hostname to forward to the application container on port `3000`.
 
@@ -186,7 +221,7 @@ Run `npm run lint` once ESLint is configured for the project's current Next.js v
 
 ProspectDesk is a personal portfolio project, not a production multi-tenant CRM.
 
-The current scope does not include authentication, role-based access control, multi-user collaboration, automated web scraping, or external API integrations. It should not be exposed as an unrestricted public service containing real prospect data without appropriate access controls.
+The application has one administrator account rather than multi-user or role-based access control. Sessions and login lockout records are stored in MySQL, and the app uses the existing MySQL service rather than adding Redis. It should still be placed behind HTTPS through the existing proxy/tunnel before handling real prospect data.
 
 ## Roadmap
 
